@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# run this script with `curl <URL> | sudo bash`
+# run this script with `curl https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/telit-firmware-508-update-scripts/main.sh | sudo bash`
 
 UPDATE_FIRMWARE_SCRIPT_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/telit-firmware-508-update-scripts/update-firmware.sh"
 
