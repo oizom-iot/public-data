@@ -175,9 +175,10 @@ update_firmware_via_uart() {
 }
 
 configure_telit() {
-    oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT#FWSWITCH=40,1,0"
     wait_for_gsm_port || exit 1
-    fwswitch_status=$(oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT#FWSWITCH?" | grep -c 'FWSWITCH: 40,0,0')
+    oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWSWITCH=40,1,0"
+    wait_for_gsm_port || exit 1
+    fwswitch_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWSWITCH?" | grep -c 'FWSWITCH: 40,0,0')
     if [ "$fwswitch_status" -eq 0 ]; then
         echo "Failed to set FWSWITCH. Exiting."
         exit 1
@@ -185,9 +186,9 @@ configure_telit() {
 
     echo "Clearing APN settings..."
     wait_for_gsm_port || exit 1
-    oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT+CGDCONT=1,\"IPV4V6\",\"\""
+    oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT+CGDCONT=1,\"IPV4V6\",\"\""
     sleep 5
-    cgdcont_status=$(oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT+CGDCONT?" | grep -c 'CGDCONT: 1,"IPV4V6","","",0,0,0,0')
+    cgdcont_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT+CGDCONT?" | grep -c 'CGDCONT: 1,"IPV4V6","","",0,0,0,0')
     if [ "$cgdcont_status" -eq 0 ]; then
         echo "Failed to clear APN settings. Exiting."
         exit 1
@@ -195,9 +196,9 @@ configure_telit() {
 
     echo "Setting USBCFG..."
     wait_for_gsm_port || exit 1
-    oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT#USBCFG=1"
+    oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#USBCFG=1"
     wait_for_gsm_port || exit 1
-    usbcfg_status=$(oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT#USBCFG?" | grep -c 'USBCFG: 1')
+    usbcfg_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#USBCFG?" | grep -c 'USBCFG: 1')
     if [ "$usbcfg_status" -eq 0 ]; then
         echo "Failed to set USBCFG. Exiting."
         exit 1
@@ -205,9 +206,9 @@ configure_telit() {
 
     echo "Setting ECM..."
     wait_for_gsm_port || exit 1
-    oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT#ECM=1,0"
+    oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#ECM=1,0"
     sleep 5
-    ecm_status=$(oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT#ECM?" | grep -c 'ECM: 0,1')
+    ecm_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#ECM?" | grep -c 'ECM: 0,1')
     if [ "$ecm_status" -eq 0 ]; then
         echo "Failed to set ECM. Exiting."
         exit 1
@@ -222,6 +223,7 @@ if module_bootmode_status; then
     reboot_module
 fi
 update_firmware_via_uart
+sleep 30
 configure_telit
 post_script_tasks
 
