@@ -200,6 +200,7 @@ configure_telit() {
     usbcfg_status=$(oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT#USBCFG?" | grep -c 'USBCFG: 1')
     if [ "$usbcfg_status" -eq 0 ]; then
         echo "Failed to set USBCFG. Exiting."
+        exit 1
     fi
 
     echo "Setting ECM..."
@@ -209,6 +210,7 @@ configure_telit() {
     ecm_status=$(oizom-config --gsmport=$(get_gsm_port) --modemcommand="AT#ECM?" | grep -c 'ECM: 0,1')
     if [ "$ecm_status" -eq 0 ]; then
         echo "Failed to set ECM. Exiting."
+        exit 1
     fi
 }
 
