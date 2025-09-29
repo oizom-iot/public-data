@@ -183,6 +183,7 @@ configure_telit() {
         echo "Failed to set FWSWITCH. Exiting."
         exit 1
     fi
+    sleep 30
 
     echo "Clearing APN settings..."
     wait_for_gsm_port || exit 1
