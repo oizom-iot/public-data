@@ -78,7 +78,7 @@ check_software_package_version() {
     if [ "$version" = "508" ] || [ "$version" = "528" ]; then
         post_script_tasks
         echo "Telit version matches binary version. No need to update. Exiting."
-        exit 0
+        return 1
     fi
 }
 
@@ -226,16 +226,26 @@ configure_telit() {
         echo "Failed to set ECM. Exiting."
         exit 1
     fi
+
+    sleep 5
+    echo ""
+    echo "Telit firmware version in $(hostname)"
+    oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#SWPKGV"
+    echo ""
 }
 
 pre_script_tasks
 identify_module
-download_files
 if module_bootmode_status; then
-    check_software_package_version
-    reboot_module
+    if check_software_package_version; then
+        download_files
+        reboot_module
+        update_firmware_via_uart
+    fi
+else
+    download_files
+    update_firmware_via_uart
 fi
-update_firmware_via_uart
 configure_telit
 post_script_tasks
 
