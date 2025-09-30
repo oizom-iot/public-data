@@ -77,7 +77,7 @@ check_software_package_version() {
     # Check if current version matches binary version
     if [ "$version" = "508" ] || [ "$version" = "528" ]; then
         post_script_tasks
-        echo "Telit version matches binary version. No need to update. Exiting."
+        echo "Telit version matches binary version. No need to update."
         return 1
     fi
 }
@@ -119,6 +119,8 @@ wait_for_gsm_port() {
 
     while [ $elapsed -lt $timeout ]; do
         if lsusb | grep -qiE '1bc7'; then
+            # wait for telit to be able respond
+            sleep 10
             echo "GSM module detected via lsusb"
             return 0
         fi
