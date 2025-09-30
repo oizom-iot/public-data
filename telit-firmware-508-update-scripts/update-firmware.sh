@@ -172,21 +172,33 @@ update_firmware_via_uart() {
         echo "Update failed. Please try again."
         exit 1
     fi
+    echo "Waiting for 30s..."
+    sleep 30
 }
 
 configure_telit() {
     wait_for_gsm_port || exit 1
+    echo "Setting global firmware..."
     oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWSWITCH=40,1,0"
-    wait_for_gsm_port || exit 1
+    echo "Waiting for module to reboot..."
+    sleep 45
     fwswitch_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWSWITCH?" | grep -c 'FWSWITCH: 40,0,0')
     if [ "$fwswitch_status" -eq 0 ]; then
         echo "Failed to set FWSWITCH. Exiting."
         exit 1
     fi
-    sleep 30
 
+    echo "Setting auto firmware..."
+    oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWAUTOSIM=1"
+    sleep 5
+    fwautosim_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWSWITCH?" | grep -c 'FWSWITCH: 40,0,0')
+    if [ "$fwautosim_status" -eq 0 ]; then
+        echo "Failed to set FWAUTOSIM. Exiting."
+        exit 1
+    fi
+
+    sleep 5
     echo "Clearing APN settings..."
-    wait_for_gsm_port || exit 1
     oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT+CGDCONT=1,\"IPV4V6\",\"\""
     sleep 5
     cgdcont_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT+CGDCONT?" | grep -c 'CGDCONT: 1,"IPV4V6","","",0,0,0,0')
@@ -224,7 +236,6 @@ if module_bootmode_status; then
     reboot_module
 fi
 update_firmware_via_uart
-sleep 30
 configure_telit
 post_script_tasks
 
