@@ -76,7 +76,6 @@ check_software_package_version() {
     
     # Check if current version matches binary version
     if [ "$version" = "508" ] || [ "$version" = "528" ]; then
-        post_script_tasks
         echo "Telit version matches binary version. No need to update."
         return 1
     fi
@@ -178,6 +177,16 @@ update_firmware_via_uart() {
     sleep 30
 }
 
+check_telit_configuration() {
+    wait_for_gsm_port || exit 1
+    fwswitch_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWSWITCH?" | grep -c 'FWSWITCH: 40,0,0')
+    if [ "$fwswitch_status" -eq 1 ]; then
+        echo "Telit already configured."
+        return 1
+    fi
+    return 0
+}
+
 configure_telit() {
     wait_for_gsm_port || exit 1
     echo "Setting global firmware..."
@@ -248,7 +257,9 @@ else
     download_files
     update_firmware_via_uart
 fi
-configure_telit
+if check_telit_configuration; then
+    configure_telit
+fi
 post_script_tasks
 
 echo "Update successful. Please update debian package."
