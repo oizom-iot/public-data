@@ -87,7 +87,7 @@ download_files() {
         echo "UXPF file already exists, skipping download"
     else
         echo "Downloading update tool UXPF"
-        if ! wget -O uxfp "$UXPF_URL"; then
+        if ! curl --interface wlan0 -o uxfp "$UXPF_URL"; then
             post_script_tasks
             echo "Error: Failed to download UXPF file"
             exit 1
@@ -100,7 +100,7 @@ download_files() {
         echo "Firmware binary already exists, skipping download"
     else
         echo "Downloading firmware binary"
-        if ! wget -O firmware.bin "$BINARY_URL"; then
+        if ! curl --interface wlan0 -o firmware.bin "$BINARY_URL"; then
             post_script_tasks
             echo "Error: Failed to download firmware binary"
             exit 1

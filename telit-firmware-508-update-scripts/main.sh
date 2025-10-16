@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# run this script with `curl https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/telit-firmware-508-update-scripts/main.sh | sudo bash`
+# run this script with `curl --interface wlan0 https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/telit-firmware-508-update-scripts/main.sh | sudo bash`
 
 UPDATE_FIRMWARE_SCRIPT_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/telit-firmware-508-update-scripts/update-firmware.sh"
 
@@ -8,7 +8,7 @@ cd /home/oizom
 mkdir -p telit
 cd telit
 
-if ! wget -O update-firmware.sh "$UPDATE_FIRMWARE_SCRIPT_URL"; then
+if ! curl --interface wlan0 -o update-firmware.sh "$UPDATE_FIRMWARE_SCRIPT_URL"; then
     echo "Error: Failed to download script"
     exit 1
 fi
