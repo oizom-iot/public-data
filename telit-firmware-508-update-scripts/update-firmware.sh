@@ -202,7 +202,7 @@ configure_telit() {
     echo "Setting auto firmware..."
     oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWAUTOSIM=1"
     sleep 5
-    fwautosim_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWSWITCH?" | grep -c 'FWSWITCH: 40,0,0')
+    fwautosim_status=$(oizom-config --gsmport=$(get_highest_gsm_port) --modemcommand="AT#FWAUTOSIM?" | grep -c 'FWAUTOSIM: 1')
     if [ "$fwautosim_status" -eq 0 ]; then
         echo "Failed to set FWAUTOSIM. Exiting."
         exit 1
