@@ -142,7 +142,7 @@ update_firmware_via_uart() {
         echo "Running initial firmware update command..."
         
         # Run first command in background and capture its PID
-        ./uxfp --file firmware.bin --no-fastboot-driver --debug --port $(get_lowest_gsm_port) --serial --speed 115200 --report &
+        ./uxfp --file firmware.bin --no-fastboot-driver --lossrecovery --debug --port $(get_lowest_gsm_port) --serial --speed 115200 --report &
         local first_pid=$!
         
         # Wait for the specified timeout, then kill the process
