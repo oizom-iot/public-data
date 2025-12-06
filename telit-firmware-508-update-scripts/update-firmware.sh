@@ -257,9 +257,9 @@ else
     download_files
     update_firmware_via_uart
 fi
-if check_telit_configuration; then
-    configure_telit
-fi
+# if check_telit_configuration; then
+configure_telit
+# fi
 post_script_tasks
 
 echo "Update successful. Please update debian package."
