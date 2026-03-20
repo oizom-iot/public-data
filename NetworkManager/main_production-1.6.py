@@ -11,6 +11,7 @@ import socket
 import re
 import shutil
 import psutil
+import ipaddress
 
 from flask import Flask,Response,send_from_directory
 from flask import request
@@ -472,15 +473,18 @@ class EthernetManager:
         self.interface_name = interface_name
 
     def dhcp(self):
-        self.__change_static_ip(ethernet_interface="dhcp", ip_address=None, routers=None, dns=None)
+        self.__change_static_ip(ethernet_interface="dhcp", ip_address=None, routers=None, dns=None, netmask=None)
 
-    def static(self,ipAddress, gateway, dns):
-        self.__change_static_ip(ethernet_interface="static", ip_address=ipAddress, routers=gateway, dns=dns)
+    def static(self,ipAddress, gateway, dns, netmask):
+        self.__change_static_ip(ethernet_interface="static", ip_address=ipAddress, routers=gateway, dns=dns, netmask=netmask)
 
-    def __change_static_ip(self, ethernet_interface, ip_address, routers, dns):
+    def __change_static_ip(self, ethernet_interface, ip_address, routers, dns, netmask):
         dhcpd_file = self.dhcpcd_conf
         if ethernet_interface == 'static':
             try:            
+                prefix = ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
+                dns_value = " ".join(map(str, dns)) if isinstance(dns, (list, tuple)) else str(dns)
+                
                 # Sanitize/validate params above
                 with open(dhcpd_file, 'r') as file:
                     data = file.readlines()
@@ -496,9 +500,9 @@ class EthernetManager:
 
                 # If config is found, use index to edit the lines you need ( the next 3)
                 if ethIndex:
-                    data[ethIndex+1] = f'static ip_address={ip_address}/24\n'
+                    data[ethIndex+1] = f'static ip_address={ip_address}/{prefix}\n'
                     data[ethIndex+2] = f'static routers={routers}\n'
-                    data[ethIndex+3] = f'static domain_name_servers={dns}\n'
+                    data[ethIndex+3] = f'static domain_name_servers={dns_value}\n'
                 logging.debug(f"Writing to {dhcpd_file}")
                 with open(dhcpd_file, 'w') as file:
                     file.writelines( data )
@@ -1008,8 +1012,8 @@ def ethernet_change():
     if ethernet_mode == "dhcp":
         ethernetmanager.dhcp()
     elif ethernet_mode == "static":
-        if 'ip' in ethernet_settings and 'dns' in ethernet_settings and 'gateway' in ethernet_settings:
-            ethernetmanager.static(ethernet_settings['ip'], ethernet_settings['gateway'], ethernet_settings['dns'])
+        if 'ip' in ethernet_settings and 'dns' in ethernet_settings and 'gateway' in ethernet_settings and 'netmask' in ethernet_settings:
+            ethernetmanager.static(ethernet_settings['ip'], ethernet_settings['gateway'], ethernet_settings['dns'], ethernet_settings['netmask'])
             response = "ethernet Configured"
         else:
             response = "Something went wrong"
