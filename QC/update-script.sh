@@ -36,5 +36,5 @@ fi
 
 rm -f "$TEMP_DOWNLOAD" /tmp/current_QC.py
 
-echo "QC.py updated. Please restart the device"
+echo "QC.py updated. Please restart hardware container"
 exit 0
