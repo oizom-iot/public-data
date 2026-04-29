@@ -1,16 +1,16 @@
 #!/bin/bash
 #
-# run this script with curl -fsSL https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/NetworkManager/update-script.sh | bash
+# run this script with `curl -fsSL https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/QC/update-script.sh | bash`
 
 BASE_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/QC"
 CONTAINER="hardware"
 
-# ─── File definitions: name|repo_subfolder|container_path ───
+# ─── File definitions: filename|container_path ───
 FILES=(
-    "QC.py|QC|/usr/src/app/QC"
-    "Noise.py|Noise|/usr/src/app/drivers/Noise"
-    "Wind.py|Wind|/usr/src/app/drivers/Wind"
-    "Rain.py|Rain|/usr/src/app/drivers/Rain"
+    "QC.py|/usr/src/app/QC"
+    "Noise.py|/usr/src/app/drivers/Noise"
+    "Wind.py|/usr/src/app/drivers/Wind"
+    "Rain.py|/usr/src/app/drivers/Rain"
 )
 
 ANY_UPDATED=0
@@ -20,11 +20,9 @@ HAS_ERROR=0
 echo "Verifying all files are present on GitHub..."
 for ENTRY in "${FILES[@]}"; do
     FILE=$(echo "$ENTRY" | cut -d'|' -f1)
-    SUBFOLDER=$(echo "$ENTRY" | cut -d'|' -f2)
-    FILE_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/$SUBFOLDER/$FILE"
 
-    if ! curl -fsSL --head "$FILE_URL" -o /dev/null 2>/dev/null; then
-        echo "Error: '$FILE' not found on GitHub at $FILE_URL. Aborting — no files were changed."
+    if ! curl -fsSL --head "$BASE_URL/$FILE" -o /dev/null 2>/dev/null; then
+        echo "Error: '$FILE' not found on GitHub at $BASE_URL/$FILE. Aborting — no files were changed."
         exit 1
     fi
     echo "  ✓ $FILE found"
@@ -36,11 +34,9 @@ echo ""
 echo "Downloading all files..."
 for ENTRY in "${FILES[@]}"; do
     FILE=$(echo "$ENTRY" | cut -d'|' -f1)
-    SUBFOLDER=$(echo "$ENTRY" | cut -d'|' -f2)
-    FILE_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/$SUBFOLDER/$FILE"
     TEMP_DOWNLOAD="/tmp/new_${FILE}"
 
-    curl -fsSL "$FILE_URL" -o "$TEMP_DOWNLOAD"
+    curl -fsSL "$BASE_URL/$FILE" -o "$TEMP_DOWNLOAD"
     if [ $? -ne 0 ]; then
         echo "Error: Failed to download '$FILE'. Aborting — cleaning up."
         for E in "${FILES[@]}"; do
@@ -56,7 +52,7 @@ echo ""
 # ─── STEP 3: Now update each file in Docker ───
 for ENTRY in "${FILES[@]}"; do
     FILE=$(echo "$ENTRY" | cut -d'|' -f1)
-    CONTAINER_PATH=$(echo "$ENTRY" | cut -d'|' -f3)
+    CONTAINER_PATH=$(echo "$ENTRY" | cut -d'|' -f2)
 
     echo "----------------------------------------"
     echo "Processing: $FILE  →  $CONTAINER_PATH"
