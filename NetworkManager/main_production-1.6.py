@@ -483,7 +483,7 @@ class EthernetManager:
         if ethernet_interface == 'static':
             try:            
                 prefix = ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
-                dns_value = " ".join(map(str, dns)) if isinstance(dns, (list, tuple)) else str(dns)
+                dns_value = " ".join(dns.replace(","," ").strip().split())
                 
                 # Sanitize/validate params above
                 with open(dhcpd_file, 'r') as file:
