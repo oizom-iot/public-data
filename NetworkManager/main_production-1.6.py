@@ -57,13 +57,13 @@ auth_algs=1
 #1 - wpa only
 #2 - wpa2 only
 #3 - both
-wpa=3
+wpa=2
 #sets wpa passphrase required by the clients to authenticate themselves on the network
 wpa_passphrase={1}
 #sets wpa key management
 wpa_key_mgmt=WPA-PSK
 #sets encryption used by WPA
-wpa_pairwise=TKIP
+#wpa_pairwise=TKIP
 #sets encryption used by WPA2
 rsn_pairwise=CCMP
 #################################
@@ -366,7 +366,7 @@ class WpaManager(PiCommander):
                 if self.save_config():
                     failures += 1
     
-        return failures
+        return [failures, idx]
 
     """
     Set network parameters
@@ -473,18 +473,26 @@ class EthernetManager:
         self.interface_name = interface_name
 
     def dhcp(self):
-        self.__change_static_ip(ethernet_interface="dhcp", ip_address=None, routers=None, dns=None, netmask=None)
+        return self.__change_static_ip(ethernet_interface="dhcp", ip_address=None, routers=None, dns=None, netmask=None)
 
-    def static(self,ipAddress, gateway, dns, netmask):
-        self.__change_static_ip(ethernet_interface="static", ip_address=ipAddress, routers=gateway, dns=dns, netmask=netmask)
+    def static(self, settings):
+        if not all(k in settings for k in ('ip', 'gateway', 'dns', 'netmask')):
+            logging.debug("Missing required settings for static IP configuration.")
+            return "Missing required settings for static IP configuration."
+        return self.__change_static_ip(ethernet_interface="static", ip_address=settings['ip'], routers=settings['gateway'], dns=settings['dns'], netmask=settings['netmask'])
 
     def __change_static_ip(self, ethernet_interface, ip_address, routers, dns, netmask):
         dhcpd_file = self.dhcpcd_conf
         if ethernet_interface == 'static':
+            verify = verifyIP(ip_address, routers, netmask, dns)
+            if verify != "Valid":
+                logging.debug(f"IP verification error: {verify}")
+                return verify
+
+            prefix = ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
+            dns_value = " ".join(dns.replace(","," ").strip().split())
+
             try:            
-                prefix = ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
-                dns_value = " ".join(dns.replace(","," ").strip().split())
-                
                 # Sanitize/validate params above
                 with open(dhcpd_file, 'r') as file:
                     data = file.readlines()
@@ -503,18 +511,23 @@ class EthernetManager:
                     data[ethIndex+1] = f'static ip_address={ip_address}/{prefix}\n'
                     data[ethIndex+2] = f'static routers={routers}\n'
                     data[ethIndex+3] = f'static domain_name_servers={dns_value}\n'
+                
+                if not ethFound or not ethIndex:
+                    raise Exception("Ethernet config not found in dhcpcd.conf")
+                    
                 logging.debug(f"Writing to {dhcpd_file}")
                 with open(dhcpd_file, 'w') as file:
                     file.writelines( data )
 
             except Exception as ex:
                 logging.debug(f"IP changing error: {ex}")
+                return "Error setting static IP"
         elif ethernet_interface == "dhcp":
             try:            
                 # Sanitize/validate params above
                 with open(dhcpd_file, 'r') as file:
                     data = file.readlines()
-
+                    
                 # Find if config exists
                 ethFound = next((x for x in data if f'interface {self.interface_name}' in x), None)
 
@@ -529,18 +542,25 @@ class EthernetManager:
                     data[ethIndex+1] = f'#static ip_address={ip_address}/24\n'
                     data[ethIndex+2] = f'#static routers={routers}\n'
                     data[ethIndex+3] = f'#static domain_name_servers={dns}\n'
+                
+                if not ethFound or not ethIndex:
+                    raise Exception("Ethernet config not found in dhcpcd.conf")
+                    
                 logging.debug(f"Writing to {dhcpd_file}")
                 with open(dhcpd_file, 'w') as file:
                     file.writelines( data )
 
             except Exception as ex:
                 logging.debug(f"IP changing error: {ex}")
+                return "Error setting DHCP"
         self.restart_ethernet()
+        return "Settings saved successfully"
                 
     def restart_ethernet(self):
         command = f"ifconfig {self.interface_name} down && ifconfig {self.interface_name} up"
         logging.debug(f"Executing.... {command}")
         self.execute_os_command(command)
+
     def get_dns(self):
         dns_list = []
         command = f"cat /etc/resolv.conf"
@@ -738,11 +758,15 @@ class WiFiManager:
         logging.debug(self.wpa_manager.list_networks())
         logging.debug(f"Connecting to {ssid} {password}")
         if (len(password) > 0):
-            logging.debug(self.wpa_manager.add_network({'ssid':ssid,'scan_ssid':1,'psk':password}))
+            failures, idx = self.wpa_manager.add_network({'ssid':ssid,'scan_ssid':1,'psk':password})
         else:
-            logging.debug(self.wpa_manager.add_network({'ssid':ssid,'scan_ssid':1,'key_mgmt':'NONE'}))
-        self.wpa_manager.enable_network(1)
+            failures, idx = self.wpa_manager.add_network({'ssid':ssid,'scan_ssid':1,'key_mgmt':'NONE'})
+        logging.debug(f"failures: {failures}, idx: {idx}")
+        self.wpa_manager.enable_network(idx)
         self.wpa_manager.save_config()
+        if failures != 0:
+            return "Failed to connect to WiFi network"
+        return "Settings saved successfully"
 
     def connection_status(self):
         response = self.status()
@@ -793,25 +817,40 @@ class WiFiManager:
         logging.debug(f"Reconnecting to... {reconnection_result}")
         self.wpa_manager.save_config()
 
+    def hotspot_status(self):
+        response = {
+            "ssid": self.ap_ssid,
+            "password": self.ap_password,
+            "ip": self.hotspot_ip,
+            "status": self.access_point.is_running()
+        }
+        
+        return response
+
 class GsmManager:
     def __init__(self):
         interfaces = ni.interfaces()
+        self.interface_name = None
         if 'usb0' in interfaces:
             self.interface_name = 'usb0'
-        else:
+        elif 'wwan0' in interfaces:
             self.interface_name = 'wwan0'
 
     def status(self):
         gsm_status = {}
-        try:
-            gsm_status = ni.ifaddresses(self.interface_name)[ni.AF_INET][0]
-            for _interface in ni.gateways()[ni.AF_INET]:
-                if _interface[1]  == self.interface_name:
-                    gsm_status.update({'gateway':_interface[0]})
-            gsm_status.update({'internet': check_internet(self.interface_name), 'dns':self.get_dns()})
-        except Exception as gsm_err:
-            logging.debug(f"[ERR]GSM status:{gsm_err}")
-            gsm_status.update({"internet":False})
+        if not self.interface_name:
+            logging.debug("No GSM interface found")
+            gsm_status.update({"message":"No modem found"})
+        else:
+            try:
+                gsm_status = ni.ifaddresses(self.interface_name)[ni.AF_INET][0]
+                for _interface in ni.gateways()[ni.AF_INET]:
+                    if _interface[1]  == self.interface_name:
+                        gsm_status.update({'gateway':_interface[0]})
+                gsm_status.update({'internet': check_internet(self.interface_name), 'dns':self.get_dns()})
+            except Exception as gsm_err:
+                logging.debug(f"[ERR]GSM status:{gsm_err}")
+                gsm_status.update({"internet":False})
         try:
             with open(APN_FILE, 'r+') as apn_file:
                 apn_list = json.load(apn_file)
@@ -834,16 +873,22 @@ class GsmManager:
         p.wait()
         result = p.communicate()
         return result[0].decode()
+
     def add_apn(self,en,apn):
-        with open(APN_FILE, 'r+') as apn_file:
-            apn_list = json.load(apn_file)
-            apn_list['user'] = {
-                "en":en,
-                "apn":apn
-            }
-            apn_file.seek(0)
-            json.dump(apn_list, apn_file, indent=4)
-            apn_file.truncate()
+        try:
+            with open(APN_FILE, 'r+') as apn_file:
+                apn_list = json.load(apn_file)
+                apn_list['user'] = {
+                    "en":en,
+                    "apn":apn
+                }
+                apn_file.seek(0)
+                json.dump(apn_list, apn_file, indent=4)
+                apn_file.truncate()
+        except Exception as apn_err:
+            logging.debug(f"[APN] err status:{apn_err}")
+            return "Error saving APN"
+        return "APN saved successfully"
 
 class Samd:
     def __init__(self):
@@ -889,6 +934,26 @@ def gethostname():
         hostname = hostname.lstrip()
         return hostname
 
+def verifyIP(ip_address, routers, netmask, dns):
+    try:
+        prefix = ipaddress.IPv4Network(f"0.0.0.0/{netmask}").prefixlen
+    except Exception as ex:
+        return "Invalid Netmask"
+    try:
+        dns_value = " ".join(dns.replace(","," ").strip().split())
+        for _dns in dns_value.split(" "):
+            ipaddress.IPv4Address(_dns)
+    except Exception as ex:
+        return "Invalid DNS"
+    try:
+        ipaddress.IPv4Address(ip_address)
+    except Exception as ex:
+        return "Invalid IP Address"
+    try:
+        ipaddress.IPv4Address(routers)
+    except Exception as ex:
+        return "Invalid Gateway"
+    return "Valid"
 
 wifimanager = WiFiManager(apssid=gethostname())
 wifimanager.setup()
@@ -915,7 +980,8 @@ def getAllstatus():
         wifi_status = wifimanager.status(True)
     eth_status = ethernetmanager.status()
     gsm_status = gsmmanager.status()
-    return { 'wifi':wifi_status, 'eth': eth_status, 'gsm': gsm_status }
+    hotspot_status = wifimanager.hotspot_status()
+    return { 'wifi':wifi_status, 'eth': eth_status, 'gsm': gsm_status, 'hotspot': hotspot_status }
 
 @app.route('/network/wifi/scan', methods=['GET'])
 def scanner():
@@ -957,10 +1023,13 @@ def connect():
     wifi_settings = request.json
     ssid = wifi_settings['ssid']
     password = wifi_settings['password']
-    wifimanager.connect_wifi(ssid, password)
+    message = wifimanager.connect_wifi(ssid, password)
+
+    status_response = getAllstatus()
+    status_response["message"] = message
     time.sleep(10)
     response = app.response_class(
-        response=json.dumps(getAllstatus()),
+        response=json.dumps(status_response),
         status=200,
         mimetype='application/json'
     )
@@ -1010,17 +1079,14 @@ def ethernet_change():
     ethernet_settings = request.json
     ethernet_mode = ethernet_settings['mode']
     if ethernet_mode == "dhcp":
-        ethernetmanager.dhcp()
+        message = ethernetmanager.dhcp()
     elif ethernet_mode == "static":
-        if 'ip' in ethernet_settings and 'dns' in ethernet_settings and 'gateway' in ethernet_settings and 'netmask' in ethernet_settings:
-            ethernetmanager.static(ethernet_settings['ip'], ethernet_settings['gateway'], ethernet_settings['dns'], ethernet_settings['netmask'])
-            response = "ethernet Configured"
-        else:
-            response = "Something went wrong"
-    
+        message = ethernetmanager.static(ethernet_settings)
 
+    status_response = getAllstatus()
+    status_response["message"] = message
     response = app.response_class(
-        response=json.dumps(getAllstatus()),
+        response=json.dumps(status_response),
         status=200,
         mimetype='application/json'
     )
@@ -1033,9 +1099,12 @@ def apn_change():
     en = gsm_settings['en']
     if en == 1:
         apn = gsm_settings['apn']
-    gsmmanager.add_apn(en, apn)
+    message = gsmmanager.add_apn(en, apn)
+    
+    status_response = getAllstatus()
+    status_response["message"] = message
     response = app.response_class(
-        response=json.dumps(getAllstatus()),
+        response=json.dumps(status_response),
         status=200,
         mimetype='application/json'
     )
@@ -1056,6 +1125,18 @@ def createAP():
 @app.route('/network/wifi/stopap', methods=['GET'])
 def stopAP():
     status_result = wifimanager.stop_hotspot()
+    response = app.response_class(
+        response=json.dumps({
+            "message":status_result
+        }),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+@app.route('/network/hotspot/status', methods=['GET'])
+def hotspot_status():
+    status_result = wifimanager.hotspot_status()
     response = app.response_class(
         response=json.dumps({
             "message":status_result
