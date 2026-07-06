@@ -677,9 +677,13 @@ class WiFiManager:
             command = "wpa_supplicant -B -Dwext -iwlan1 -c /etc/wpa_supplicant/wpa_supplicant.conf"
         # start wpa_supplicant
         Thread(target=os.system, args=(command,), daemon=True).start()
-        # This delay is very important unless wpa won't connect
-        logging.debug(f"Delay of {self.standard_wifi_delay}")
-        time.sleep(self.standard_wifi_delay)
+        if self.wifi_interface == "wlan1":
+            logging.debug(f"Delay of 10")
+            time.sleep(10)
+        else:
+            # This delay is very important unless wpa won't connect
+            logging.debug(f"Delay of {self.standard_wifi_delay}")
+            time.sleep(self.standard_wifi_delay)
         connection_status = self.connection_status()
         logging.debug(f"Connection status: {connection_status}")
         self.wpa_manager.wpa_cli = "wpa_cli"
