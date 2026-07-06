@@ -472,6 +472,42 @@ class EthernetManager:
         self.dhcpcd_conf = dhcpcd_conf
         self.interface_name = interface_name
 
+    def _parse_saved_static_settings(self, data, eth_index):
+        saved_settings = {
+            'addr': '',
+            'netmask': '',
+            'gateway': '',
+            'dns': ['']
+        }
+
+        try:
+            for offset in range(1, 4):
+                if eth_index + offset >= len(data):
+                    continue
+
+                line = data[eth_index + offset].lstrip('#').strip()
+
+                if line.startswith('static ip_address='):
+                    value = line.split('=', 1)[1].strip()
+                    if '/' in value:
+                        ip_address, prefix = value.split('/', 1)
+                        saved_settings['addr'] = ip_address.strip()
+                        try:
+                            saved_settings['netmask'] = str(ipaddress.IPv4Network(f'0.0.0.0/{prefix}').netmask)
+                        except Exception:
+                            saved_settings['netmask'] = prefix.strip()
+                    else:
+                        saved_settings['addr'] = value
+                elif line.startswith('static routers='):
+                    saved_settings['gateway'] = line.split('=', 1)[1].strip()
+                elif line.startswith('static domain_name_servers='):
+                    dns_value = line.split('=', 1)[1].strip()
+                    saved_settings['dns'] = [dns for dns in dns_value.replace(',', ' ').split() if dns]
+        except Exception as e:
+            logging.debug(f"Error parsing saved static settings: {e}")
+
+        return saved_settings
+
     def dhcp(self):
         return self.__change_static_ip(ethernet_interface="dhcp", ip_address=None, routers=None, dns=None, netmask=None)
 
@@ -539,9 +575,9 @@ class EthernetManager:
 
                 # If config is found, use index to edit the lines you need ( the next 3)
                 if ethIndex:
-                    data[ethIndex+1] = f'#static ip_address={ip_address}/24\n'
-                    data[ethIndex+2] = f'#static routers={routers}\n'
-                    data[ethIndex+3] = f'#static domain_name_servers={dns}\n'
+                    data[ethIndex+1] = f'#{data[ethIndex+1]}'
+                    data[ethIndex+2] = f'#{data[ethIndex+2]}'
+                    data[ethIndex+3] = f'#{data[ethIndex+3]}'
                 
                 if not ethFound or not ethIndex:
                     raise Exception("Ethernet config not found in dhcpcd.conf")
@@ -586,11 +622,12 @@ class EthernetManager:
                 ethIndex = data.index(ethFound)
                 if data[ethIndex].startswith('#'):
                     ethernet_mode = "dhcp"
+                ethernet_status.update({"saved_static": self._parse_saved_static_settings(data, ethIndex)})
 
         except Exception as e:
             logging.debug(f"[ERR] ETH MODE {e}")
         try:
-            ethernet_status = ni.ifaddresses(self.interface_name)[ni.AF_INET][0]
+            ethernet_status.update(ni.ifaddresses(self.interface_name)[ni.AF_INET][0])
             for _interface in ni.gateways()[ni.AF_INET]:
                 if _interface[1]  == self.interface_name:
                     ethernet_status.update({'gateway':_interface[0]})
