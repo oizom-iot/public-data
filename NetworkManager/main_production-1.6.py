@@ -623,6 +623,7 @@ class EthernetManager:
                 if data[ethIndex].startswith('#'):
                     ethernet_mode = "dhcp"
                 ethernet_status.update({"saved_static": self._parse_saved_static_settings(data, ethIndex)})
+            ethernet_status.update({'mode':ethernet_mode})
 
         except Exception as e:
             logging.debug(f"[ERR] ETH MODE {e}")
@@ -631,7 +632,7 @@ class EthernetManager:
             for _interface in ni.gateways()[ni.AF_INET]:
                 if _interface[1]  == self.interface_name:
                     ethernet_status.update({'gateway':_interface[0]})
-            ethernet_status.update({'internet': check_internet(self.interface_name), 'dns':self.get_dns(), 'mode':ethernet_mode })
+            ethernet_status.update({'internet': check_internet(self.interface_name), 'dns':self.get_dns()})
         except Exception as eth_err:
             logging.debug(f"Ethernet status:{eth_err}")
             ethernet_status.update({"internet":False})
