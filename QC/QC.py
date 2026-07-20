@@ -37,6 +37,7 @@ from OzWrapper.OzGPS import OzGPS
 from OzWrapper.OzLightning import OzLightning
 from OzWrapper.OzNoise import OzNoise
 from OzWrapper.OzOGS import OzOGS
+from OzWrapper.OzOSP import OzOSP
 from OzWrapper.OzRain import OzRain
 from OzWrapper.OzRGB import OzRGB
 from OzWrapper.OzSamd import OzSamd
@@ -49,14 +50,6 @@ OIZOM_MANAGER = "http://manager.oizom.com"
 OIZOM_SOCKET = "http://socket.oizom.com"
 HOLO_API = "/v2/qc/init/"
 QC_API = "/qc/sensor/data"
-
-serial_port = "/dev/ttyACM0"
-samd_serial = serial.Serial(
-    port=serial_port,
-    baudrate=115200,
-    timeout=5,
-    write_timeout=3,
-)
 
 
 class QC:
@@ -77,6 +70,7 @@ class QC:
     ozuvlight = None
     ozflood = None
     ozsystem = None
+    ozosp = None
     tm1637 = None
     co2 = None
 
@@ -108,6 +102,8 @@ class QC:
     sensorStatusList = {
         "sht": 0,
         "bme": 0,
+        "aht20": 0,
+        "sen66": 0,
         "batt": 0,
         "dust": 0,
         "ogs": 0,
@@ -157,6 +153,7 @@ class QC:
         "RTC Test": "qg",
         "SHT test": "d",
         "BME test": "e",
+        "AHT20 test": "ht",
         "Battery test": "f",
         "Light-UV test": "k",
         "Fan test": "l",
@@ -165,6 +162,7 @@ class QC:
         "LED test": "i",
         "RTC Test": "qg",
         "SHT test": "d",
+        "AHT20 test": "ht",
         "Light-UV test": "k",
         "Fan test": "l",
     }
@@ -172,6 +170,7 @@ class QC:
         "LED test": "i",
         "SHT test": "d",
         "BME test": "e",
+        "AHT20 test": "ht",
         "Battery test": "f",
         "Light-UV test": "k",
         "Fan test": "l",
@@ -190,6 +189,7 @@ class QC:
         "LED test": "i",
         "SHT test": "d",
         "BME test": "e",
+        "AHT20 test": "ht",
         "Battery test": "f",
         "Light-UV test": "k",
         "Fan test": "l",
@@ -202,6 +202,7 @@ class QC:
         "OGS Test": "j",
         "RTC Test": "qg",
         "CO2 Test": "ac",
+        "AQBOT I2C CO2 Test":"aqad"
     }
     helium_holoCommands = {
         "LED test": "i",
@@ -218,6 +219,8 @@ class QC:
     i2cCommands = {
         "SHT test": "d",
         "BME test": "e",
+        "AHT20 test": "ht",
+        "SEN66 test": "se",
         "Battery test": "f",
         "Light-UV test": "k",
     }
@@ -227,6 +230,11 @@ class QC:
     argsParse = {
         "--sht": "d",
         "--bme": "e",
+        "--aht20": "ht",
+        "--pt1000": "pt",
+        "--ospVisibility": "vs",
+        "--ospWind": "o3",
+        "--sen66": "se",
         "--battery": "f",
         "--gps": "g",
         "--dust": "h",
@@ -249,6 +257,7 @@ class QC:
         "--siren": "z",
         "--co2elt": "ac",
         "--co2scd": "ad",
+        "--aqbotco2scd": "aqad",
         "--sensorlist": "qz",
         "--checki2c": "qy",
         "--checkuart": "qx",
@@ -264,6 +273,7 @@ class QC:
         "--rebootsystem": "ql",
         "--help": "help",
         "--athp": "ae",
+        "--athp2": "ae2",
         "--allOGS": "af",
         "--allOGS": "sb",
         "--checkrtc": "qg",
@@ -278,6 +288,11 @@ class QC:
         "hc": "Helium HOLO Test (with Ethernet)",
         "d": "SHT31 Test",
         "e": "BME280 Test",
+        "ht": "AHT20 Test",
+        "pt": "PT1000 Test",
+        "vs": "MODBUS Visibility Test",
+        "o3": "MODBUS Wind Test",
+        "se": "SEN66 Test",
         "f": "Battery Test",
         "g": "GPS Test",
         "h": "Dust Test",
@@ -308,7 +323,9 @@ class QC:
         "jj": "Other Important Commands",
         "ac": "CO2 Test - ELT",
         "ad": "CO2 Test - SCD",
+        "aqad": "AQBOT I2C CO2 Test",
         "ae": "ATHP test",
+        "ae2": "ATHP2 test",
         "af": "All positions OGS test",
         "sb": "All positions OGS test",
         "ag": "UV 36 - LTR390 test",
@@ -349,6 +366,11 @@ class QC:
     argsCommand = {
         "--sht": "SHT31 Test",
         "--bme": "BME280 Test",
+        "--aht20": "AHT20 Test",
+        "--pt1000": "PT1000 Test",
+        "--ospVisibility": "MODBUS Visibility Test",
+        "--ospWind": "MODBUS Wind Test",
+        "--sen66": "SEN66 Test",
         "--battery": "Battery Test",
         "--gps": "GPS Test",
         "--dust": "Dust Test",
@@ -383,12 +405,18 @@ class QC:
         "--reboot5v": "Reboot 5v",
         "--rebootsystem": "Reboot System",
         "--athp": "ATHP test",
+        "--athp2": "ATHP2 test",
         "--allOGS": "All positions OGS test for sensorboard",
         "--checkrtc": "Check RTC",
     }
     qcSensorList = {
         "d": "sht31",
         "e": "bme280",
+        "ht": "aht20",
+        "pt": "pt1000",
+        "vs": "MODBUS_vis",
+        "o3": "MODBUS_wind",
+        "se": "sen66",
         "f": "batt",
         "g": "gps",
         "h": "dust",
@@ -409,20 +437,15 @@ class QC:
         "qp": "floodUart",
         "ac": "elt_CO2",
         "ad": "scd_CO2",
+        "aqad": "aqbot_scd_CO2",
         "ae": "athp",
+        "ae2": "athp2",
         "af": "allOGS",
         "sb": "allOGS",
         "ag": "uv36",
         "ah": "sht31",
         "as": "AS3935",
     }
-
-    """
-    sht31   -> OzTemp()
-            -> temp config
-            -> initialize ['temp']
-            -> update sensor list ['sht'] 
-    """
 
     sht31 = {
         "class": "oztemp",
@@ -452,6 +475,20 @@ class QC:
             }
         ],
         "sensor": "bme",
+    }
+    aht20 = {
+        "class": "oztemp",
+        "init": [
+            {
+                "en": 1,
+                "pn": 29,
+                "parameters": [
+                    {"cr": 0, "pm": 1, "pn": 29, "sc": "t1", "se": 100},
+                    {"cr": 0, "pm": 2, "pn": 29, "sc": "t2", "se": 100},
+                ],
+            }
+        ],
+        "sensor": "aht20",
     }
     batt = {
         "class": "ozbatt",
@@ -490,6 +527,30 @@ class QC:
                     {"cr": 0, "pm": 2, "sc": "p2", "se": 100},
                     {"cr": 0, "pm": 3, "sc": "p3", "se": 60},
                     {"cr": 0, "pm": 4, "sc": "p4", "se": 100},
+                ],
+            }
+        ],
+        "sensor": "dust",
+    }
+    sen66 = {
+        "class": "ozdust",
+        "init": [
+            {
+                "en": 1,
+                "pn": 13,
+                "lb": "",
+                "sensorId": "",
+                "gpio": {"pos": 0},
+                "parameters": [
+                    {"cr": 0, "pm": 1, "sc": "p1", "se": 100},
+                    {"cr": 0, "pm": 2, "sc": "p2", "se": 100},
+                    {"cr": 0, "pm": 3, "sc": "p3", "se": 100},
+                    {"cr": 0, "pm": 4, "sc": "p5", "se": 100},
+                    {"cr": 0, "pm": 5, "sc": "temp", "se": 100},
+                    {"cr": 0, "pm": 6, "sc": "hum", "se": 100},
+                    {"cr": 0, "pm": 7, "sc": "v2", "se": 100},
+                    {"cr": 0, "pm": 8, "sc": "r1", "se": 100},
+                    {"cr": 0, "pm": 9, "sc": "g1", "se": 100},
                 ],
             }
         ],
@@ -809,27 +870,59 @@ class QC:
         ],
         "sensor": "CO2",
     }
-    athp = (
-        {
-            "class": "oztemp",
-            "init": [
-                {
-                    "en": 1,
-                    "pn": 25,
-                    "parameters": [
-                        {"cr": 0, "pm": 1, "pn": 25, "sc": "temp", "se": 100},
-                        {"cr": 0, "pm": 2, "pn": 25, "sc": "hum", "se": 100},
-                    ],
-                },
-                {
-                    "en": 1,
-                    "pn": 26,
-                    "parameters": [{"cr": 0, "pm": 3, "pn": 26, "sc": "pr", "se": 100}],
-                },
-            ],
-            "sensor": "bme",
-        },
-    )
+    aqbot_scd_CO2 = {
+        "class": "ozco2",
+        "init": [
+            {
+                "en": 1,
+                "pn": 54,
+                "gpio": {"pos": 1},
+                "parameters": [{"cr": 0, "pm": 1, "sc": "co2", "se": 100}],
+            }
+        ],
+        "sensor": "CO2",
+    }
+    athp = {
+        "class": "oztemp",
+        "init": [
+            {
+                "en": 1,
+                "pn": 25,
+                "parameters": [
+                    {"cr": 0, "pm": 1, "pn": 25, "sc": "temp", "se": 100},
+                    {"cr": 0, "pm": 2, "pn": 25, "sc": "hum", "se": 100},
+                ],
+            },
+            {
+                "en": 1,
+                "pn": 26,
+                "parameters": [{"cr": 0, "pm": 3, "pn": 26, "sc": "pr", "se": 100}],
+            },
+        ],
+        "sensor": "bme",
+    }
+    athp2 = {
+        "class": "oztemp",
+        "init": [
+            {
+                "en": 1,
+                "pn": 25,
+                "parameters": [
+                    {"cr": 0, "pm": 1, "pn": 25, "sc": "temp", "se": 100},
+                    {"cr": 0, "pm": 2, "pn": 25, "sc": "hum", "se": 100},
+                ],
+            },
+            {
+                "en": 1,
+                "pn": 28,
+                "parameters": [
+                    {"cr": 0, "pm": 1, "pn": 28, "sc": "temp", "se": 100},
+                    {"cr": 0, "pm": 3, "pn": 28, "sc": "pr", "se": 100},
+                ],
+            },
+        ],
+        "sensor": "bme",
+    }
     lightning = {
         "class": "ozlightning",
         "init": [
@@ -843,6 +936,90 @@ class QC:
             }
         ],
         "sensor": "lightning",
+    }
+
+    pt1000 = {
+        "class": "ozosp",
+        "init": [
+            {
+                "en": 1,
+                "pn": 151,
+                "slave_id": 1,
+                "debug": 0,
+                "gpio": {"port": "/dev/ttyAMA2", "baudrate": 9600, "parity": "N"},
+                "parameters": [
+                    {
+                        "register": 2,
+                        "fn_code": 3,
+                        "count": 1,
+                        "parsing_type": 0,
+                        "se": 1,
+                        "cr": 0,
+                        "sc": "pt_temp",
+                    }
+                ],
+            }
+        ],
+        "sensor": "pt1000",
+    }
+
+    MODBUS_vis = {
+        "class": "ozosp",
+        "init": [
+            {
+                "en": 1,
+                "pn": 132,
+                "slave_id": 1,
+                "debug": 1,
+                "gpio": {"port": "/dev/ttyAMA2", "baudrate": 9600, "parity": "N"},
+                "parameters": [
+                    {
+                        "register": 0,
+                        "fn_code": 3,
+                        "count": 5,
+                        "parsing_type": 0,
+                        "se": 100,
+                        "cr": 0,
+                        "sc": "vis",
+                    }
+                ],
+            }
+        ],
+        "sensor": "MODBUS_vis",
+    }
+
+    MODBUS_wind = {
+        "class": "ozosp",
+        "init": [
+            {
+                "en": 1,
+                "pn": 131,
+                "slave_id": 1,
+                "debug": 1,
+                "gpio": {"port": "/dev/ttyAMA2", "baudrate": 9600, "parity": "N"},
+                "parameters": [
+                    {
+                        "register": 2,
+                        "fn_code": 3,
+                        "count": 2,
+                        "parsing_type": 1,
+                        "se": 100,
+                        "cr": 0,
+                        "sc": "ws",
+                    },
+                    {
+                        "register": 1,
+                        "fn_code": 3,
+                        "count": 1,
+                        "parsing_type": 0,
+                        "se": 100,
+                        "cr": 0,
+                        "sc": "wd",
+                    },
+                ],
+            }
+        ],
+        "sensor": "MODBUS_wind",
     }
 
     def __init__(self):
@@ -864,6 +1041,17 @@ class QC:
         self.network_status.queue[0] = 8
         self.logger_console = self.setup_logger_console()
         self.logger_file = self.setup_logger_file()
+
+        try:
+            serial_port = "/dev/ttyACM0"
+            self.samd_serial = serial.Serial(
+                port=serial_port,
+                baudrate=115200,
+                timeout=5,
+                write_timeout=3,
+            )
+        except Exception as e:
+            print(f"Error initializing serial port: {e}")
 
     def setup_logger_console(self):
         # Define the log file name
@@ -951,13 +1139,13 @@ class QC:
             self.sensor.initialize(init)
 
         elif sensor == "wind2":
-            self.sensor.initialize(samd_serial, init[0])
+            self.sensor.initialize(self.samd_serial, init[0])
 
         elif sensor == "rain2":
-            self.sensor.initialize(samd_serial, init[0])
+            self.sensor.initialize(self.samd_serial, init[0])
 
         elif sensor == "noise2":
-            self.sensor.initialize(samd_serial, init[0])
+            self.sensor.initialize(self.samd_serial, init[0])
 
         else:
             self.sensor.initialize(init, self.init_value)
@@ -1019,6 +1207,8 @@ class QC:
             return Noise()
         if sensor == "ozlightning":
             return OzLightning()
+        if sensor == "ozosp":
+            return OzOSP()
 
     # Sensor data validation to perform the true false method
     def sensorDataValidation(self, sensorType):
@@ -1587,7 +1777,7 @@ class QC:
     def command_qe(self):
         try:
             self.logger_console.info("Checking 4-20 module")
-            gpio.select_I2C(0)
+            gpio.select_I2C(5)
             self.MCP4725 = Adafruit_MCP4725.MCP4725(address=0x61, busnum=0)
             self.min, self.max, self.dacmin, self.dacmax = 0, 80, 700, 3470
             for value in range(81):
@@ -1751,10 +1941,10 @@ class QC:
         rprint("[green] MB testing started")
         self.logger_file.info("[green] MB testing started")
         rprint(
-            "[yellow] ++ Includes LED test, SHT, BME, Battery/MPPT, Light-UV, Fan test"
+            "[yellow] ++ Includes LED test, SHT, BME, AHT20, SEN66, Battery/MPPT, Light-UV, Fan test"
         )
         self.logger_file.info(
-            "[yellow] ++ Includes LED test, SHT, BME, Battery/MPPT, Light-UV, Fan test"
+            "[yellow] ++ Includes LED test, SHT, BME, AHT20, SEN66, Battery/MPPT, Light-UV, Fan test"
         )
         for key, value in self.mbCommands.items():
             rprint(str(key))
@@ -1793,6 +1983,7 @@ class QC:
         self.helium_sensorList = self.sensorStatusList.copy()
         # Removing unrequired sensors from the list for Helium MB QC
         self.helium_sensorList.pop("bme", None)
+        self.helium_sensorList.pop("aht20", None)
         self.helium_sensorList.pop("batt", None)
         self.helium_sensorList.pop("noise", None)
         self.helium_sensorList.pop("wind", None)
@@ -1808,10 +1999,10 @@ class QC:
         rprint("[green] DNS testing started")
         self.logger_file.info("[green] DNS testing started")
         rprint(
-            "[yellow] ++ Includes LED test, SHT, BME, Battery/MPPT, Light-UV, Fan test"
+            "[yellow] ++ Includes LED test, SHT, BME, AHT20, SEN66, Battery/MPPT, Light-UV, Fan test"
         )
         self.logger_file.info(
-            "[yellow] ++ Includes LED test, SHT, BME, Battery/MPPT, Light-UV, Fan test"
+            "[yellow] ++ Includes LED test, SHT, BME, AHT20, SEN66, Battery/MPPT, Light-UV, Fan test"
         )
         rprint("[yellow] ++ Cubic Dust, Noise sensor, Wind Rain test")
         self.logger_file.info("[yellow] ++ Cubic Dust, Noise sensor, Wind Rain test")
@@ -1860,10 +2051,10 @@ class QC:
         rprint("[green] HOLO testing started")
         self.logger_file.info("[green] HOLO testing started")
         rprint(
-            "[yellow] ++ Includes LED test, SHT, BME, Battery/MPPT, Light-UV, Fan test"
+            "[yellow] ++ Includes LED test, SHT, BME, AHT20, SEN66,Battery/MPPT, Light-UV, Fan test"
         )
         self.logger_file.info(
-            "[yellow] ++ Includes LED test, SHT, BME, Battery/MPPT, Light-UV, Fan test"
+            "[yellow] ++ Includes LED test, SHT, BME, AHT20, SEN66, Battery/MPPT, Light-UV, Fan test"
         )
         rprint("[yellow] ++ Cubic Dust, Noise sensor, Wind - Rain test")
         self.logger_file.info("[yellow] ++ Cubic Dust, Noise sensor, Wind - Rain test")
