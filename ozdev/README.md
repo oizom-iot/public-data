@@ -3,8 +3,21 @@
 Terminal tool for inspecting an Oizom device across both Aikaan device managers
 and the admin platform, then getting onto it.
 
+**macOS / Linux:**
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/oizom-iot/public-data/main/ozdev/install.sh | sh
+```
+
+**Windows** (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/oizom-iot/public-data/main/ozdev/install.ps1 | iex
+```
+
+Then:
+
+```sh
 ozdev login
 ozdev <device-name>
 ```
