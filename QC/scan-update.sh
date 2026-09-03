@@ -4,48 +4,83 @@
 
 BASE_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/QC"
 CONTAINER="hardware"
-FILE="SCAN.py"
-CONTAINER_PATH="/usr/src/app/QC"
 
-TEMP_DOWNLOAD="/tmp/new_${FILE}"
-TEMP_CURRENT="/tmp/current_${FILE}"
+# ─── File definitions: filename|container_path ───
+FILES=(
+    "SCAN.py|/usr/src/app/QC"
+    "gpio.py|/usr/src/app/drivers/gpio"
+)
 
-# ─── STEP 1: Download the new file ───
-echo "Downloading $FILE..."
-if ! curl -fsSL "$BASE_URL/$FILE" -o "$TEMP_DOWNLOAD"; then
-    echo "Error: Failed to download '$FILE' from $BASE_URL/$FILE. Aborting — nothing was changed."
-    rm -f "$TEMP_DOWNLOAD"
-    exit 1
-fi
-echo "  ✓ $FILE downloaded"
+ANY_UPDATED=0
+HAS_ERROR=0
+
+cleanup_downloads() {
+    for E in "${FILES[@]}"; do
+        rm -f "/tmp/new_$(echo "$E" | cut -d'|' -f1)"
+    done
+}
+
+# ─── STEP 1: Download every file before touching the container ───
+# SCAN.py calls into gpio.py, so copying one in without the other would leave
+# the container with a mismatched pair. Fetch both up front instead.
+echo "Downloading files..."
+for ENTRY in "${FILES[@]}"; do
+    FILE=$(echo "$ENTRY" | cut -d'|' -f1)
+
+    if ! curl -fsSL "$BASE_URL/$FILE" -o "/tmp/new_${FILE}"; then
+        echo "Error: Failed to download '$FILE' from $BASE_URL/$FILE. Aborting — no files were changed."
+        cleanup_downloads
+        exit 1
+    fi
+    echo "  ✓ $FILE downloaded"
+done
 echo ""
 
-# ─── STEP 2: Update the file in Docker ───
-echo "----------------------------------------"
-echo "Processing: $FILE  →  $CONTAINER_PATH"
+# ─── STEP 2: Update each file in Docker ───
+for ENTRY in "${FILES[@]}"; do
+    FILE=$(echo "$ENTRY" | cut -d'|' -f1)
+    CONTAINER_PATH=$(echo "$ENTRY" | cut -d'|' -f2)
 
-# Extract current file from Docker container. A failure here means the file is
-# not installed yet, so fall through to the copy instead of aborting.
-if docker cp "${CONTAINER}:${CONTAINER_PATH}/${FILE}" "$TEMP_CURRENT" 2>/dev/null; then
-    if cmp -s "$TEMP_DOWNLOAD" "$TEMP_CURRENT"; then
-        echo "$FILE is already up to date"
-        rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
-        exit 0
+    TEMP_DOWNLOAD="/tmp/new_${FILE}"
+    TEMP_CURRENT="/tmp/current_${FILE}"
+
+    echo "----------------------------------------"
+    echo "Processing: $FILE  →  $CONTAINER_PATH"
+
+    # Extract the current file from the container. A failure here means the
+    # file is not installed yet, so fall through to the copy instead of
+    # treating it as an error.
+    if docker cp "${CONTAINER}:${CONTAINER_PATH}/${FILE}" "$TEMP_CURRENT" 2>/dev/null; then
+        if cmp -s "$TEMP_DOWNLOAD" "$TEMP_CURRENT"; then
+            echo "$FILE is already up to date"
+            rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
+            continue
+        fi
+    else
+        echo "$FILE not found in container — installing it for the first time"
     fi
-else
-    echo "$FILE not found in container — installing it for the first time"
+
+    # Copy the file into the Docker container
+    if ! docker cp "$TEMP_DOWNLOAD" "${CONTAINER}:${CONTAINER_PATH}/${FILE}"; then
+        echo "Error: Failed to update $FILE in Docker container"
+        HAS_ERROR=1
+        rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
+        continue
+    fi
+
+    rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
+    echo "$FILE updated successfully"
+    ANY_UPDATED=1
+done
+
+echo "----------------------------------------"
+if [ $ANY_UPDATED -eq 1 ]; then
+    echo "One or more files were updated. Please restart the hardware container."
 fi
 
-# Copy the file into the Docker container
-if ! docker cp "$TEMP_DOWNLOAD" "${CONTAINER}:${CONTAINER_PATH}/${FILE}"; then
-    echo "Error: Failed to update $FILE in Docker container"
-    rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
+if [ $HAS_ERROR -eq 1 ]; then
+    echo "Warning: Some files encountered errors during update."
     exit 1
 fi
-
-rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
-echo "$FILE updated successfully"
-echo "----------------------------------------"
-echo "Please restart the hardware container."
 
 exit 0
