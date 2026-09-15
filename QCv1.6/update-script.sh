@@ -1,8 +1,8 @@
 #!/bin/bash
 #
-# run this script with `curl -fsSL https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/QC/update-script.sh | bash`
+# run this script with `curl -fsSL https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/QCv1.6/update-script.sh | bash`
 
-BASE_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/QC"
+BASE_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/QCv1.6"
 CONTAINER="hardware"
 FILE="QC.py"
 CONTAINER_PATH="/usr/src/app/QC"
