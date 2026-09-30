@@ -122,7 +122,7 @@ def collect_snapshot() -> dict[str, object]:
 		"uptime_s": run_command(["uptime", "-s"]),
 		"lsusb": run_command(["lsusb"]),
 		"docker_ps": collect_docker_ps(),
-		"last_hardware_sending_data": run_shell_command("docker logs hardware -t | grep '\\[MANAGER\\] Sending Data' | tail -n2"),
+		"last_hardware_sending_data": run_shell_command("docker logs hardware -t | grep 'Manager    | Sending Data' | tail -n2"),
 		"interfaces": OrderedDict(
 			(interface_name, collect_interface_data(interface_name))
 			for interface_name in INTERFACES
