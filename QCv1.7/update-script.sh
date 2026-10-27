@@ -4,50 +4,59 @@
 
 BASE_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/QCv1.7"
 CONTAINER="hardware"
-FILE="QC.py"
+FILES=("actions.py" "checks.py")
 CONTAINER_PATH="/usr/src/app/QC"
 
-TEMP_DOWNLOAD="/tmp/new_${FILE}"
-TEMP_CURRENT="/tmp/current_${FILE}"
+TEMP_DIR=$(mktemp -d)
+trap 'rm -rf "$TEMP_DIR"' EXIT
 
-# ─── STEP 1: Download the new file ───
-echo "Downloading $FILE..."
-if ! curl -fsSL "$BASE_URL/$FILE" -o "$TEMP_DOWNLOAD"; then
-    echo "Error: Failed to download '$FILE' from $BASE_URL/$FILE. Aborting — nothing was changed."
-    rm -f "$TEMP_DOWNLOAD"
-    exit 1
-fi
-echo "  ✓ $FILE downloaded"
+# ─── STEP 1: Download all new files ───
+# All downloads finish before Docker is touched, so a failed download changes nothing.
+for FILE in "${FILES[@]}"; do
+    echo "Downloading $FILE..."
+    if ! curl -fsSL "$BASE_URL/$FILE" -o "$TEMP_DIR/new_${FILE}"; then
+        echo "Error: Failed to download '$FILE' from $BASE_URL/$FILE. Aborting — nothing was changed."
+        exit 1
+    fi
+    echo "  ✓ $FILE downloaded"
+done
 echo ""
 
-# ─── STEP 2: Update the file in Docker ───
+# ─── STEP 2: Update each file in Docker ───
+UPDATED=0
+for FILE in "${FILES[@]}"; do
+    echo "----------------------------------------"
+    echo "Processing: $FILE  →  $CONTAINER_PATH"
+
+    # Extract current file from Docker container
+    if ! docker cp "${CONTAINER}:${CONTAINER_PATH}/${FILE}" "$TEMP_DIR/current_${FILE}"; then
+        echo "Error: Failed to extract $FILE from Docker container"
+        exit 1
+    fi
+
+    # Compare files
+    if cmp -s "$TEMP_DIR/new_${FILE}" "$TEMP_DIR/current_${FILE}"; then
+        echo "$FILE is already up to date"
+        continue
+    fi
+
+    # Copy updated file into Docker container
+    if ! docker cp "$TEMP_DIR/new_${FILE}" "${CONTAINER}:${CONTAINER_PATH}/${FILE}"; then
+        echo "Error: Failed to update $FILE in Docker container"
+        exit 1
+    fi
+    echo "$FILE updated successfully"
+    UPDATED=$((UPDATED + 1))
+done
 echo "----------------------------------------"
-echo "Processing: $FILE  →  $CONTAINER_PATH"
 
-# Extract current file from Docker container
-if ! docker cp "${CONTAINER}:${CONTAINER_PATH}/${FILE}" "$TEMP_CURRENT"; then
-    echo "Error: Failed to extract $FILE from Docker container"
-    rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
-    exit 1
+if [ "$UPDATED" -gt 0 ]; then
+    echo "Restarting $CONTAINER container..."
+    if ! docker restart "$CONTAINER"; then
+        echo "Error: Failed to restart $CONTAINER container. Restart it manually."
+        exit 1
+    fi
+    echo "  ✓ $CONTAINER container restarted"
 fi
-
-# Compare files
-if cmp -s "$TEMP_DOWNLOAD" "$TEMP_CURRENT"; then
-    echo "$FILE is already up to date"
-    rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
-    exit 0
-fi
-
-# Copy updated file into Docker container
-if ! docker cp "$TEMP_DOWNLOAD" "${CONTAINER}:${CONTAINER_PATH}/${FILE}"; then
-    echo "Error: Failed to update $FILE in Docker container"
-    rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
-    exit 1
-fi
-
-rm -f "$TEMP_DOWNLOAD" "$TEMP_CURRENT"
-echo "$FILE updated successfully"
-echo "----------------------------------------"
-echo "Please restart the hardware container."
 
 exit 0
