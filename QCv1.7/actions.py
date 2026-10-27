@@ -345,11 +345,11 @@ def act_fan(ctx) -> bool:
 def act_siren(ctx) -> bool:
     """Pulse the siren's LED and buzzer and ask the operator to confirm both.
 
-    Selects the pin backend by device type: type-``"AQH"`` devices drive
+    Selects the pin backend by board: Helium boards (``ctx.is_helium``) drive
     Raspberry Pi GPIO pins 22 (LED) and 23 (buzzer) directly, every other
     profile goes through MCP230XX expander pins 10 and 11 (expander number
     from the ``MCP_ID`` environment variable, default ``6``). Each part is
-    switched on (one second on ``"AQH"``, three seconds otherwise) and off
+    switched on (one second on Helium, three seconds otherwise) and off
     for one second via the nested ``activate`` helper before the operator is
     asked whether both parts activated.
 
@@ -366,7 +366,7 @@ def act_siren(ctx) -> bool:
     ctx.log.info_with_context(ACT, f"ACT  {cmd}  handler=_act_siren")
 
     try:
-        if ctx.device_type == "AQH":
+        if ctx.is_helium:
             from drivers.gpio import gpio
 
             parts = {"LED": 22, "Buzzer": 23}
@@ -375,7 +375,7 @@ def act_siren(ctx) -> bool:
                 """Drive a single siren part pin to the requested logic level.
 
                 Nested helper bound to the pin backend chosen in
-                :func:`act_siren` — direct ``gpio`` calls on type-``"AQH"``
+                :func:`act_siren` — direct ``gpio`` calls on Helium
                 devices, an ``MCP230XX`` expander otherwise. Configures the
                 pin as an output on every call before writing the level.
 
@@ -400,7 +400,7 @@ def act_siren(ctx) -> bool:
                 """Drive a single siren part pin to the requested logic level.
 
                 Nested helper bound to the pin backend chosen in
-                :func:`act_siren` — direct ``gpio`` calls on type-``"AQH"``
+                :func:`act_siren` — direct ``gpio`` calls on Helium
                 devices, an ``MCP230XX`` expander otherwise. Configures the
                 pin as an output on every call before writing the level.
 
@@ -461,7 +461,7 @@ def act_siren(ctx) -> bool:
 def act_display(ctx) -> bool:
     """Show a full-segment test pattern on the device display for operator review.
 
-    On type-``"AQH"`` devices a TM1638 module lights its four discrete LEDs
+    On Helium boards (``ctx.is_helium``) a TM1638 lights its four discrete LEDs
     one by one, shows ``"8.8.8.8.8.8."`` for five seconds, and is then
     blanked, LEDs included. On all other devices four MCP230XX pins
     (12-15) are raised to enable the display, a TM1637 scrolls ``"888888"``,
@@ -483,7 +483,7 @@ def act_display(ctx) -> bool:
 
     try:
         # FIRST STEP: ➡️ Activate the display with a test pattern
-        if ctx.device_type == "AQH":
+        if ctx.is_helium:
             from drivers.TM1638.TM1638 import TM1638
 
             display = TM1638(stb=3, clk=21, dio=20, brightness=7)

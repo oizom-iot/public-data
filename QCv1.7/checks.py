@@ -363,7 +363,7 @@ def _run_i2c_scan(ctx, cmd: str, *, use_pca: bool) -> bool:
 
     Bus 0 is walked channel by channel via ``gpio.select_I2C(ch, ch)``, then
     buses 6 and 10 are scanned directly, each with ``i2cdetect -y`` (bus 6
-    is skipped on ``AQH``, which has no MCP230XX).
+    is skipped on Helium boards, which have no MCP230XX).
     Addresses are parsed out of the i2cdetect grid, deduplicated, and
     resolved to device names through ``I2C_ADDRESS_REGISTRY``; the rows are
     sorted by bus, channel and address and logged as one summary. The
@@ -406,7 +406,7 @@ def _run_i2c_scan(ctx, cmd: str, *, use_pca: bool) -> bool:
     # Keep scan plan hardcoded for this board to keep flow simple.
     mux_bus = 0
     mux_channels = list(range(8 if use_pca else 4))
-    direct_buses = [10] if ctx.device_type == "AQH" else [6, 10]
+    direct_buses = [10] if ctx.is_helium else [6, 10]
     selector = "PCA9547" if use_pca else "AB pin selector"
 
     scan_errors: list[dict] = []

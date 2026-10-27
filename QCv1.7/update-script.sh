@@ -4,7 +4,7 @@
 
 BASE_URL="https://raw.githubusercontent.com/oizom-iot/public-data/refs/heads/main/QCv1.7"
 CONTAINER="hardware"
-FILES=("actions.py" "checks.py")
+FILES=("actions.py" "checks.py" "context.py" "session.py")
 CONTAINER_PATH="/usr/src/app/QC"
 
 TEMP_DIR=$(mktemp -d)
